@@ -2,12 +2,12 @@
  * Typed REST API client for AutoFix Agent backend.
  * Non-streaming endpoints: /api/health, /api/analyze
  *
- * The base URL is read from NEXT_PUBLIC_API_URL environment variable.
+ * The base URL is read from NEXT_API_URL environment variable.
  * Falls back to http://localhost:8000 for local development.
  */
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:8000'
+  process.env.NEXT_API_URL?.replace(/\/$/, '') ?? 'http://localhost:8000'
 
 // ---------------------------------------------------------------------------
 // Shared types (mirror backend Pydantic schemas)

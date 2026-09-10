@@ -175,7 +175,7 @@ export default function AutoFixDashboard() {
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
             <strong>Connection error:</strong> {error}. Make sure the backend is running on{' '}
-            <code className="font-mono text-xs">{process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}</code>.
+            <code className="font-mono text-xs">{process.env.NEXT_API_URL ?? 'http://localhost:8000'}</code>.
           </div>
         )}
 
@@ -210,7 +210,7 @@ export default function AutoFixDashboard() {
           <span>AutoFix Agent · Live backend integration</span>
           <span className="flex items-center gap-1.5">
             <Info className="h-3 w-3" />
-            Backend: {process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}
+            Backend: {process.env.NEXT_API_URL ?? 'http://localhost:8000'}
           </span>
         </div>
       </main>
