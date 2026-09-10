@@ -17,16 +17,6 @@ from app.streaming.events import SSEEvent, SSEEventType
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _safe_str(value: Any, fallback: str = "") -> str:
-    """Return string representation of a value, never raising."""
-    if value is None:
-        return fallback
-    try:
-        return str(value)
-    except Exception:
-        return fallback
-
-
 def _current_attempt(delta: Dict[str, Any], default: int = 0) -> int:
     """Extract attempt count from state delta."""
     return int(delta.get("attempt", default))

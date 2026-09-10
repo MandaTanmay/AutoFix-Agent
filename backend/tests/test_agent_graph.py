@@ -44,6 +44,7 @@ def test_immediate_success():
     initial_state: AgentState = {
         "original_code": clean_code,
         "current_code": clean_code,
+        "test_code": None,
         "language": "python",
         "attempt": 0,
         "max_attempts": 5,
@@ -81,6 +82,7 @@ def test_one_repair_success():
     initial_state: AgentState = {
         "original_code": broken_code,
         "current_code": broken_code,
+        "test_code": None,
         "language": "python",
         "attempt": 0,
         "max_attempts": 5,
@@ -126,6 +128,7 @@ def test_multiple_repairs_success():
     initial_state: AgentState = {
         "original_code": "print(first_bug)",
         "current_code": "print(first_bug)",
+        "test_code": None,
         "language": "python",
         "attempt": 0,
         "max_attempts": 5,
@@ -165,6 +168,7 @@ def test_maximum_attempts_reached():
     initial_state: AgentState = {
         "original_code": broken_code,
         "current_code": broken_code,
+        "test_code": None,
         "language": "python",
         "attempt": 0,
         "max_attempts": 3,
@@ -209,6 +213,7 @@ def test_unrepairable_code():
     initial_state: AgentState = {
         "original_code": broken_code,
         "current_code": broken_code,
+        "test_code": None,
         "language": "python",
         "attempt": 0,
         "max_attempts": 2,

@@ -34,10 +34,14 @@ app = FastAPI(
     description="Backend API service for autonomous code repair agent",
 )
 
-# Configure CORS
+# CORS: allow_origins=["*"] is incompatible with allow_credentials=True per the CORS spec.
+# Read a comma-separated list from CORS_ORIGINS env var; fall back to localhost dev defaults.
+_raw_cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001")
+ALLOWED_ORIGINS: list[str] = [o.strip() for o in _raw_cors_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

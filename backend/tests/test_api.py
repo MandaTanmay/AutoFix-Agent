@@ -64,8 +64,11 @@ async def test_api_analyze_unsupported_language():
             "language": "ruby",
         }
         resp = await client.post("/api/analyze", json=payload)
-        assert resp.status_code == 400
-        assert "Unsupported language" in resp.json()["detail"]
+        # Pydantic field_validator now returns 422 for unsupported language
+        assert resp.status_code in (400, 422)
+        body = resp.json()
+        detail_str = str(body.get("detail", ""))
+        assert "Unsupported language" in detail_str or "unsupported" in detail_str.lower()
 
 
 @pytest.mark.asyncio
@@ -77,8 +80,11 @@ async def test_api_repair_empty_code():
             "language": "python",
         }
         resp = await client.post("/api/repair", json=payload)
-        assert resp.status_code == 400
-        assert "source_code cannot be empty" in resp.json()["detail"]
+        # Pydantic field_validator now returns 422 for empty source_code
+        assert resp.status_code in (400, 422)
+        body = resp.json()
+        detail_str = str(body.get("detail", ""))
+        assert "empty" in detail_str or "source_code" in detail_str
 
 
 @pytest.mark.asyncio

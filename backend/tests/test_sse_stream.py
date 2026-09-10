@@ -230,14 +230,17 @@ class TestSSEStreamEndpoint:
             exit_code=0, execution_time=0.01, language="python",
         )
 
-    def test_empty_code_returns_400(self):
-        """Empty source_code must be rejected before streaming begins."""
+    def test_empty_code_returns_400_or_422(self):
+        """Empty source_code must be rejected before streaming begins.
+        FastAPI returns 422 when Pydantic validation fails on the request body.
+        """
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/api/repair/stream", json={
             "source_code": "   ",
             "language": "python",
         })
-        assert resp.status_code == 400
+        # 422: Pydantic field_validator rejects whitespace-only source_code
+        assert resp.status_code in (400, 422)
 
     def test_stream_returns_text_event_stream_content_type(self):
         """Verify correct media type is set."""

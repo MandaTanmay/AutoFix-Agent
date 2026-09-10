@@ -1,7 +1,5 @@
-import json
 from typing import List, Optional
 from langchain_core.prompts import ChatPromptTemplate
-from app.analysis.models import ErrorObservation
 from app.llm.models import RepairAttempt
 
 DIAGNOSIS_SYSTEM_PROMPT = """You are an expert autonomous code debugging and repair agent.

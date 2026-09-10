@@ -7,6 +7,22 @@ import time
 from typing import Optional
 from app.execution.base import BaseExecutor, ExecutionResult
 
+# Path traversal patterns that should never appear in submitted code.
+_PATH_TRAVERSAL_RE = re.compile(r"(\.\./|\.\.\\|/etc/|/proc/|C:\\\\Windows)", re.IGNORECASE)
+
+
+def _check_path_traversal(code: str) -> None:
+    """Raise ValueError if code contains obvious path traversal or sensitive paths."""
+    if _PATH_TRAVERSAL_RE.search(code):
+        raise ValueError(
+            "Submitted code contains disallowed path references (e.g. '../', '/etc/')."
+        )
+
+
+def _scratch_dir() -> Optional[str]:
+    """Return the base scratch directory for temp workspaces, or None to use system default."""
+    return os.environ.get("AUTOFIX_SCRATCH_DIR") or None
+
 
 class PythonExecutor(BaseExecutor):
     """Executes Python code via controlled subprocess invocation without a shell."""
@@ -27,7 +43,21 @@ class PythonExecutor(BaseExecutor):
         actual_timeout = timeout if timeout is not None else self.timeout
         start_time = time.perf_counter()
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        # Security: reject code with obvious path traversal patterns
+        try:
+            _check_path_traversal(code)
+        except ValueError as exc:
+            return ExecutionResult(
+                success=False,
+                stdout="",
+                stderr=str(exc),
+                exit_code=-1,
+                execution_time=0.0,
+                language=self.language,
+                error_type="SecurityError",
+            )
+
+        with tempfile.TemporaryDirectory(dir=_scratch_dir()) as tmp_dir:
             script_path = os.path.join(tmp_dir, "solution.py")
             with open(script_path, "w", encoding="utf-8") as f:
                 f.write(code)

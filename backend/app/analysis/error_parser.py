@@ -75,11 +75,7 @@ class ErrorParser:
         if error_match:
             found_type = error_match.group(1).strip()
             error_message = (error_match.group(2) or "").strip()
-            # If known or recognized exception
-            if found_type in PYTHON_KNOWN_ERRORS or found_type.endswith("Error"):
-                error_type = found_type
-            else:
-                error_type = found_type
+            error_type = found_type
 
         # Extract file and line from traceback: File "...", line 12
         # Usually the last File "...", line X in the traceback is the error origin

@@ -3,6 +3,19 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from pydantic import BaseModel, Field
 
+# Maximum number of bytes to retain from stdout/stderr.
+# Output beyond this limit is truncated to prevent memory abuse.
+MAX_OUTPUT_BYTES: int = 65_536  # 64 KB
+
+
+def _truncate_output(text: str, max_bytes: int = MAX_OUTPUT_BYTES) -> str:
+    """Truncate text to at most max_bytes UTF-8 bytes, appending a notice if trimmed."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    truncated = encoded[:max_bytes].decode("utf-8", errors="ignore")
+    return truncated + f"\n[...output truncated at {max_bytes // 1024}KB...]"
+
 
 class ExecutionResult(BaseModel):
     """Normalized result data model returned after executing code."""
@@ -35,6 +48,3 @@ class BaseExecutor(ABC):
         to prevent arbitrary shell injection.
         """
         pass
-
-    def _measure_time(self) -> float:
-        return time.perf_counter()

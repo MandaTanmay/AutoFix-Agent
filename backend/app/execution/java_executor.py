@@ -6,6 +6,7 @@ import subprocess
 import time
 from typing import Optional
 from app.execution.base import BaseExecutor, ExecutionResult
+from app.execution.python_executor import _check_path_traversal, _scratch_dir
 
 
 class JavaExecutor(BaseExecutor):
@@ -38,6 +39,20 @@ class JavaExecutor(BaseExecutor):
         actual_timeout = timeout if timeout is not None else self.timeout
         start_time = time.perf_counter()
 
+        # Security: reject code with obvious path traversal patterns
+        try:
+            _check_path_traversal(code)
+        except ValueError as exc:
+            return ExecutionResult(
+                success=False,
+                stdout="",
+                stderr=str(exc),
+                exit_code=-1,
+                execution_time=0.0,
+                language=self.language,
+                error_type="SecurityError",
+            )
+
         javac_bin = shutil.which("javac")
         java_bin = shutil.which("java")
         if not javac_bin or not java_bin:
@@ -54,7 +69,7 @@ class JavaExecutor(BaseExecutor):
 
         class_name = self._extract_main_class_name(code)
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(dir=_scratch_dir()) as tmp_dir:
             source_file = os.path.join(tmp_dir, f"{class_name}.java")
             with open(source_file, "w", encoding="utf-8") as f:
                 f.write(code)

@@ -8,7 +8,6 @@ Only user-facing summaries are emitted — no internal chain-of-thought.
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
-import json
 from pydantic import BaseModel, Field
 
 
