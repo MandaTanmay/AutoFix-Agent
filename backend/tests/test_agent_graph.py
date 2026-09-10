@@ -99,8 +99,9 @@ def test_one_repair_success():
     assert final_state["attempt"] == 1
     assert len(final_state["history"]) == 1
     assert final_state["history"][0].status == "success"
-    assert final_state["history"][0].validation_result == "Passed"
+    assert "Passed" in final_state["history"][0].validation_result
     assert final_state["current_code"] == fixed_code
+
 
 
 def test_multiple_repairs_success():
@@ -184,7 +185,8 @@ def test_maximum_attempts_reached():
     # Check that each attempt is recorded in history
     for item in final_state["history"]:
         assert item.status == "failed"
-        assert item.validation_result == "Failed"
+        assert "Failed" in item.validation_result
+
 
 
 def test_unrepairable_code():

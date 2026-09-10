@@ -2,27 +2,36 @@ from typing import Literal
 from app.agent.state import AgentState
 
 
-def check_initial_execution(state: AgentState) -> Literal["success", "needs_repair"]:
+def check_runtime_error(state: AgentState) -> Literal["runtime_error", "validate"]:
     """
-    Evaluates the result of the observation phase.
-    If the code executed successfully, terminate to END.
-    Otherwise, proceed to diagnosis and patching.
+    Evaluates initial execution:
+    - If there was a runtime exception / crash: proceed immediately to DIAGNOSE.
+    - If execution ran without crashing: proceed to VALIDATE to test logic correctness.
     """
     exec_result = state.get("execution_result")
-    if exec_result and exec_result.success:
+    if not exec_result or not exec_result.success:
+        return "runtime_error"
+    return "validate"
+
+
+def check_validation_passed(state: AgentState) -> Literal["success", "needs_repair"]:
+    """
+    Evaluates test suite validation result:
+    - If tests pass: terminate with success.
+    - If tests fail (or logic bugs detected): proceed to DIAGNOSE.
+    """
+    val_result = state.get("validation_result")
+    if val_result and val_result.passed:
         return "success"
     return "needs_repair"
 
 
-def check_validation_decision(state: AgentState) -> Literal["success", "retry", "max_attempts_reached"]:
+def check_retry_decision(state: AgentState) -> Literal["success", "retry", "max_attempts_reached"]:
     """
-    Evaluates the result after validate_node.
-    If validation passed, terminate successfully.
-    If attempts reached max_attempts, terminate with limit reached.
-    Otherwise, route to retry / re-execution.
+    Evaluates whether the agent should terminate or loop after an attempted repair.
     """
     val_result = state.get("validation_result")
-    if val_result and val_result.success:
+    if val_result and val_result.passed:
         return "success"
 
     attempt = state.get("attempt", 0)

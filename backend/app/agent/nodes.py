@@ -5,7 +5,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from app.execution.manager import ExecutionManager
+from app.validation.manager import ValidationManager
+from app.validation.base import ValidationResult, TestFailureDetail
 from app.analysis.error_parser import ErrorParser
+from app.analysis.models import ErrorObservation
 from app.llm.client import LLMDiagnosisClient
 from app.llm.models import RepairAttempt, RepairDiagnosis
 from app.agent.state import AgentState, CodePatch, HistoryItem
@@ -18,7 +21,7 @@ class GeneratedPatch(BaseModel):
 
 
 PATCH_SYSTEM_PROMPT = """You are an autonomous code repair assistant.
-Given the original source code, the diagnosed error, and the suggested repair strategy, produce the complete repaired code.
+Given the original source code, the diagnosed error/test failure, and the suggested repair strategy, produce the complete repaired code.
 
 CRITICAL INSTRUCTIONS:
 1. Output MUST be strictly valid code in the target language.
@@ -61,15 +64,17 @@ def _compute_diff(original: str, modified: str) -> str:
 
 
 class AgentNodeHandler:
-    """Handles node execution logic with pluggable execution, analysis, and LLM services."""
+    """Handles node execution logic with pluggable execution, validation, analysis, and LLM services."""
 
     def __init__(
         self,
         execution_manager: Optional[ExecutionManager] = None,
+        validation_manager: Optional[ValidationManager] = None,
         diagnosis_client: Optional[LLMDiagnosisClient] = None,
         patch_generator_fn: Optional[Callable[[str, str, RepairDiagnosis], GeneratedPatch]] = None,
     ):
         self.execution_manager = execution_manager or ExecutionManager()
+        self.validation_manager = validation_manager or ValidationManager()
         self.diagnosis_client = diagnosis_client or LLMDiagnosisClient()
         self.patch_generator_fn = patch_generator_fn
 
@@ -80,11 +85,11 @@ class AgentNodeHandler:
         result = self.execution_manager.execute(language=language, code=code)
         return {
             "execution_result": result,
-            "status": "success" if result.success else "running",
+            "status": "running",
         }
 
     def observe_node(self, state: AgentState) -> Dict[str, Any]:
-        """Node 2: Normalize and parse error traces into ErrorObservation."""
+        """Node 2: Normalize and parse error traces into ErrorObservation if execution failed."""
         exec_result = state.get("execution_result")
         if not exec_result:
             return {"error_observation": None}
@@ -92,13 +97,64 @@ class AgentNodeHandler:
         if exec_result.success:
             return {
                 "error_observation": None,
-                "status": "success",
+                "status": "running",
             }
 
         observation = ErrorParser.parse(exec_result)
         return {
             "error_observation": observation,
             "status": "running",
+        }
+
+    def validate_node(self, state: AgentState) -> Dict[str, Any]:
+        """
+        Node: Run test suite validation against the current code.
+        Proves code correctness beyond mere zero-exit-code execution.
+        """
+        language = state.get("language", "python")
+        code = state.get("current_code", "")
+        test_code = state.get("test_code")
+
+        # If no separate test code is provided, fallback to execution validation
+        if not test_code:
+            exec_res = self.execution_manager.execute(language=language, code=code)
+            is_passed = exec_res.success
+            val_result = ValidationResult(
+                passed=is_passed,
+                total_tests=1,
+                passed_tests=1 if is_passed else 0,
+                failed_tests=0 if is_passed else 1,
+                stdout=exec_res.stdout,
+                stderr=exec_res.stderr,
+                failure_details=[] if is_passed else [
+                    TestFailureDetail(test_name="execution", message=exec_res.stderr.strip() or "Failed with non-zero exit")
+                ],
+            )
+        else:
+            val_result = self.validation_manager.validate(
+                language=language, code=code, test_code=test_code
+            )
+
+        # If validation failed due to assertion or test errors, synthesize ErrorObservation
+        observation = state.get("error_observation")
+        if not val_result.passed and not observation:
+            first_fail = val_result.failure_details[0].message if val_result.failure_details else (val_result.stderr or "Tests failed")
+            observation = ErrorObservation(
+                language=language,
+                error_type="AssertionError" if "AssertionError" in (val_result.stdout + val_result.stderr) else "TestFailure",
+                error_message=first_fail,
+                file_name=None,
+                line_number=None,
+                column_number=None,
+                stack_trace=val_result.stdout or val_result.stderr,
+                stdout=val_result.stdout,
+                stderr=val_result.stderr,
+            )
+
+        return {
+            "validation_result": val_result,
+            "error_observation": observation,
+            "status": "success" if val_result.passed else "running",
         }
 
     def diagnose_node(self, state: AgentState) -> Dict[str, Any]:
@@ -151,9 +207,11 @@ class AgentNodeHandler:
             diff=diff_text,
         )
 
+        # Clear previous error observation for the new attempt
         return {
             "patch": patch,
             "current_code": generated.patched_code,
+            "error_observation": None,
         }
 
     def _default_llm_patch(
@@ -190,20 +248,8 @@ class AgentNodeHandler:
             return GeneratedPatch(**res)
         return res
 
-    def validate_node(self, state: AgentState) -> Dict[str, Any]:
-        """Node 5: Execute the patched code to validate if the bug is resolved."""
-        language = state.get("language", "python")
-        current_code = state.get("current_code", "")
-        val_result = self.execution_manager.execute(language=language, code=current_code)
-        is_success = val_result.success
-
-        return {
-            "validation_result": val_result,
-            "status": "success" if is_success else "running",
-        }
-
     def retry_node(self, state: AgentState) -> Dict[str, Any]:
-        """Node 6: Record history snapshot, increment attempt counter, prepare next cycle."""
+        """Node 6: Record history snapshot, increment attempt counter, check loop limits."""
         attempt = state.get("attempt", 0) + 1
         max_attempts = state.get("max_attempts", 5)
 
@@ -213,8 +259,9 @@ class AgentNodeHandler:
         patch = state.get("patch")
 
         err_summary = None
-        if val_result and not val_result.success:
-            err_summary = val_result.stderr.strip() or f"Exit code {val_result.exit_code}"
+        if val_result and not val_result.passed:
+            first_fail = val_result.failure_details[0].message if val_result.failure_details else ""
+            err_summary = first_fail or val_result.stderr.strip() or f"Tests failed ({val_result.failed_tests}/{val_result.total_tests})"
         elif obs:
             err_summary = f"{obs.error_type}: {obs.error_message}"
 
@@ -223,15 +270,15 @@ class AgentNodeHandler:
             error=err_summary,
             diagnosis=diag.diagnosis if diag else None,
             patch=patch.patched_code if patch else None,
-            validation_result="Passed" if (val_result and val_result.success) else "Failed",
-            status="success" if (val_result and val_result.success) else "failed",
+            validation_result=f"Passed ({val_result.passed_tests}/{val_result.total_tests})" if (val_result and val_result.passed) else f"Failed ({val_result.failed_tests if val_result else 1}/{val_result.total_tests if val_result else 1})",
+            status="success" if (val_result and val_result.passed) else "failed",
         )
 
         updated_history = list(state.get("history", []))
         updated_history.append(history_item)
 
         new_status = "running"
-        if val_result and val_result.success:
+        if val_result and val_result.passed:
             new_status = "success"
         elif attempt >= max_attempts:
             new_status = "max_attempts_reached"

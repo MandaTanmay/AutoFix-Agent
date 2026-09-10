@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from app.execution.base import ExecutionResult
 from app.analysis.models import ErrorObservation
 from app.llm.models import RepairDiagnosis
+from app.validation.base import ValidationResult
 
 
 class CodePatch(BaseModel):
@@ -27,6 +28,7 @@ class AgentState(TypedDict):
     """LangGraph State representation for the AutoFix code repair workflow."""
     original_code: str
     current_code: str
+    test_code: Optional[str]
     language: str
     attempt: int
     max_attempts: int
@@ -34,6 +36,7 @@ class AgentState(TypedDict):
     error_observation: Optional[ErrorObservation]
     diagnosis: Optional[RepairDiagnosis]
     patch: Optional[CodePatch]
-    validation_result: Optional[ExecutionResult]
+    validation_result: Optional[ValidationResult]
     history: List[HistoryItem]
     status: str  # "running", "success", "failed", "max_attempts_reached"
+
