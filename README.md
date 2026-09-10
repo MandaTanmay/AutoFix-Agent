@@ -59,7 +59,7 @@ pnpm install
 cp .env.example .env.local
 
 # Configure .env.local with:
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_API_URL=http://localhost:8000
 
 # Start development server
 pnpm dev
@@ -94,12 +94,17 @@ GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=openai/gpt-oss-120b
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 
-# Start FastAPI server
-uvicorn app.main:app --reload --port 8000
+# Start FastAPI server locally
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Backend runs at: `http://localhost:8000`
 API Documentation: `http://localhost:8000/docs`
+
+### Render Deployment
+
+The included `render.yaml` configures the backend as a Render web service. It binds
+to `0.0.0.0` and uses Render's assigned `$PORT` so the service is externally reachable.
 
 ### 3. Running Tests
 
@@ -131,7 +136,7 @@ pytest tests/test_execution.py -v
 ## Environment Variables
 
 ### Frontend (.env.local)
-- `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:8000`)
+- `NEXT_API_URL` - Backend API URL (default: `http://localhost:8000`)
 
 ### Backend (.env)
 - `GROQ_API_KEY` - Groq API key for LLM diagnosis
