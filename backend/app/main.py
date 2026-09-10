@@ -49,6 +49,12 @@ app.add_middleware(
 )
 
 
+@app.api_route("/", methods=["GET", "HEAD"])
+def root_health_check():
+    """Return a successful response for platform port and health probes."""
+    return {"status": "ok", "service": "autofix-agent"}
+
+
 @app.get("/health", response_model=HealthResponse)
 @app.get("/api/health", response_model=HealthResponse)
 def health_check():

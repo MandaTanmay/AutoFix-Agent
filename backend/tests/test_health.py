@@ -14,3 +14,12 @@ async def test_health_check():
             "status": "ok",
             "service": "autofix-agent",
         }
+
+
+@pytest.mark.asyncio
+async def test_root_probe_check():
+    """Render's root HEAD probe must receive a successful response."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.head("/")
+        assert response.status_code == 200
