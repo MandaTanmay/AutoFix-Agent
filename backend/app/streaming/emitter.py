@@ -59,6 +59,22 @@ def node_to_sse_events(node_name: str, state_delta: Dict[str, Any], attempt: int
                 details={"success": success, "execution_time": duration},
             ))
 
+    elif node_name == "detect_language":
+        validation = state_delta.get("language_validation")
+        if validation is not None and not validation.is_match:
+            events.append(make(
+                type=SSEEventType.LANGUAGE_MISMATCH,
+                message=validation.message,
+                attempt=0,
+                status="failed",
+                details={
+                    "selected_language": validation.selected_language,
+                    "detected_language": validation.detected_language,
+                    "confidence": validation.confidence,
+                    "is_match": False,
+                },
+            ))
+
     elif node_name == "observe":
         obs = state_delta.get("error_observation")
         if obs is not None:

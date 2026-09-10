@@ -7,6 +7,15 @@ from app.llm.models import RepairDiagnosis
 from app.validation.base import ValidationResult
 
 
+class LanguageValidationResult(BaseModel):
+    """Result of comparing detected source language with user selection."""
+    selected_language: str
+    detected_language: str
+    is_match: bool
+    confidence: float
+    message: str
+
+
 class CodePatch(BaseModel):
     """Represents the code modification produced by the patch node."""
     explanation: str = Field(..., description="Concise summary of the change")
@@ -30,6 +39,8 @@ class AgentState(TypedDict):
     current_code: str
     test_code: Optional[str]
     language: str
+    detected_language: str
+    language_validation: Optional[LanguageValidationResult]
     attempt: int
     max_attempts: int
     execution_result: Optional[ExecutionResult]

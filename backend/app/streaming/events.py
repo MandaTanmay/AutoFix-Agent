@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 class SSEEventType(str, Enum):
     """All valid SSE event types emitted by the repair stream."""
     SESSION_STARTED    = "session_started"
+    LANGUAGE_MISMATCH  = "language_mismatch"
     EXECUTE_STARTED    = "execute_started"
     EXECUTE_COMPLETED  = "execute_completed"
     ERROR_DETECTED     = "error_detected"

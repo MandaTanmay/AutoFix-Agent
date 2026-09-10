@@ -5,7 +5,7 @@ from app.execution.base import ExecutionResult
 from app.analysis.models import ErrorObservation
 from app.llm.models import RepairDiagnosis
 from app.validation.base import ValidationResult
-from app.agent.state import HistoryItem
+from app.agent.state import HistoryItem, LanguageValidationResult
 
 # Maximum allowed source/test code size in bytes (100 KB).
 _MAX_CODE_BYTES: int = 102_400
@@ -100,7 +100,9 @@ class AgentEvent(BaseModel):
 class AnalyzeResponse(BaseModel):
     """Response returned by /api/analyze."""
     language: str
-    execution_result: ExecutionResult
+    detected_language: str
+    language_validation: LanguageValidationResult
+    execution_result: Optional[ExecutionResult] = None
     error_observation: Optional[ErrorObservation] = None
 
 
@@ -109,6 +111,8 @@ class RepairResponse(BaseModel):
     session_id: str = Field(..., description="Unique session identifier for the repair run")
     status: str = Field(..., description="Outcome status: success, max_attempts_reached, or failed")
     language: str
+    detected_language: str
+    language_validation: LanguageValidationResult
     attempts: int = Field(..., description="Total repair iterations performed")
     final_code: str = Field(..., description="Final repaired source code")
     diagnosis: Optional[RepairDiagnosis] = Field(None, description="Latest diagnostic analysis")

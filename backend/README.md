@@ -94,8 +94,10 @@ cp .env.example .env
 Set your `GROQ_API_KEY` in `.env`:
 ```ini
 GROQ_API_KEY=gsk_your_groq_api_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 ```
+
+**Important**: Groq regularly decommissions older models. Check https://console.groq.com/docs/models for currently available models.
 
 ### 4. Run the Backend Server
 

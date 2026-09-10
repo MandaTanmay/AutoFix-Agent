@@ -18,8 +18,8 @@ class LLMDiagnosisClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model_name: str = "llama-3.3-70b-versatile",
-        temperature: float = 0.1,
+        model_name: Optional[str] = None,
+        temperature: float = 0,
         chat_model=None,
     ):
         """
@@ -28,7 +28,7 @@ class LLMDiagnosisClient:
         without requiring a live GROQ_API_KEY.
         """
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
-        self.model_name = model_name
+        self.model_name = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         self.temperature = temperature
         self._custom_chat_model = chat_model
 
@@ -51,7 +51,7 @@ class LLMDiagnosisClient:
 
         base_llm = ChatGroq(
             groq_api_key=self.api_key,
-            model_name=self.model_name,
+            model=self.model_name,
             temperature=self.temperature,
         )
         return base_llm.with_structured_output(RepairDiagnosis)

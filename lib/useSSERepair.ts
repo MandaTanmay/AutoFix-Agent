@@ -19,6 +19,7 @@ import { api } from '@/lib/api'
 
 export type SSEEventType =
   | 'session_started'
+  | 'language_mismatch'
   | 'execute_started'
   | 'execute_completed'
   | 'error_detected'
@@ -48,6 +49,7 @@ export interface SSEEvent {
 
 export type AgentPhase =
   | 'idle'
+  | 'language_mismatch'
   | 'executing'
   | 'observing'
   | 'diagnosing'
@@ -80,8 +82,14 @@ export interface ValidationInfo {
 }
 
 export interface RepairResult {
-  status: 'success' | 'failed'
+  status: 'success' | 'failed' | 'language_mismatch'
   attempts: number
+}
+
+export interface LanguageMismatchInfo {
+  selectedLanguage: string
+  detectedLanguage: string
+  message: string
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +98,7 @@ export interface RepairResult {
 
 const EVENT_TONE: Record<SSEEventType, TimelineEvent['tone']> = {
   session_started:      'blue',
+  language_mismatch:    'red',
   execute_started:      'blue',
   execute_completed:    'blue',
   error_detected:       'red',
@@ -107,6 +116,7 @@ const EVENT_TONE: Record<SSEEventType, TimelineEvent['tone']> = {
 
 const EVENT_TITLE: Record<SSEEventType, string> = {
   session_started:      'Session started',
+  language_mismatch:    'Language mismatch',
   execute_started:      'Execute',
   execute_completed:    'Execution complete',
   error_detected:       'Error detected',
@@ -150,6 +160,7 @@ function sseToPhase(type: SSEEventType): AgentPhase | null {
     case 'retry_started':     return 'retrying'
     case 'repair_success':    return 'success'
     case 'repair_failed':     return 'failed'
+    case 'language_mismatch': return 'language_mismatch'
     default:                  return null
   }
 }
@@ -183,6 +194,8 @@ export interface UseSSERepairReturn {
   validation: ValidationInfo | null
   /** Final repair outcome once stream closes */
   result: RepairResult | null
+  /** Language validation details when source and selection differ */
+  languageMismatch: LanguageMismatchInfo | null
   /** True while a stream is open */
   running: boolean
   /** Non-null when a fatal stream/network error occurs */
@@ -196,6 +209,7 @@ export function useSSERepair(): UseSSERepairReturn {
   const [diagnosis,  setDiagnosis]  = useState<DiagnosisInfo | null>(null)
   const [validation, setValidation] = useState<ValidationInfo | null>(null)
   const [result,     setResult]     = useState<RepairResult | null>(null)
+  const [languageMismatch, setLanguageMismatch] = useState<LanguageMismatchInfo | null>(null)
   const [running,    setRunning]    = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -219,6 +233,7 @@ export function useSSERepair(): UseSSERepairReturn {
     setDiagnosis(null)
     setValidation(null)
     setResult(null)
+    setLanguageMismatch(null)
     setError(null)
     setRunning(true)
 
@@ -304,6 +319,19 @@ export function useSSERepair(): UseSSERepairReturn {
               })
             }
 
+            if (event.type === 'language_mismatch' && event.details) {
+              setLanguageMismatch({
+                selectedLanguage: (event.details.selected_language as string) ?? options.language ?? 'python',
+                detectedLanguage: (event.details.detected_language as string) ?? 'unknown',
+                message: event.message,
+              })
+              setResult({ status: 'language_mismatch', attempts: 0 })
+              setRunning(false)
+              setPhase('language_mismatch')
+              controller.abort()
+              return
+            }
+
             // Terminal events — close stream
             if (event.type === 'repair_success') {
               setResult({ status: 'success', attempts: event.attempt })
@@ -337,5 +365,5 @@ export function useSSERepair(): UseSSERepairReturn {
     }
   }, [])
 
-  return { run, abort, events, phase, attempt, diagnosis, validation, result, running, error }
+  return { run, abort, events, phase, attempt, diagnosis, validation, result, languageMismatch, running, error }
 }

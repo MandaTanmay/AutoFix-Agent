@@ -11,7 +11,8 @@ from app.analysis.error_parser import ErrorParser
 from app.analysis.models import ErrorObservation
 from app.llm.client import LLMDiagnosisClient
 from app.llm.models import RepairAttempt, RepairDiagnosis
-from app.agent.state import AgentState, CodePatch, HistoryItem
+from app.agent.state import AgentState, CodePatch, HistoryItem, LanguageValidationResult
+from app.analysis.language_detector import detect_language
 
 
 class GeneratedPatch(BaseModel):
@@ -77,6 +78,32 @@ class AgentNodeHandler:
         self.validation_manager = validation_manager or ValidationManager()
         self.diagnosis_client = diagnosis_client or LLMDiagnosisClient()
         self.patch_generator_fn = patch_generator_fn
+
+    def detect_language_node(self, state: AgentState) -> Dict[str, Any]:
+        """Detect source language and block the repair workflow on a mismatch."""
+        selected = state.get("language", "python")
+        selected = {"py": "python", "js": "javascript"}.get(selected, selected)
+        detected, confidence = detect_language(state.get("current_code", ""))
+        is_match = detected == selected
+        if is_match:
+            message = f"Detected language matches selected language: {detected}."
+        else:
+            message = (
+                f"The uploaded code appears to be {detected.capitalize()}, "
+                f"but {selected.capitalize()} is selected. "
+                f"Please select {detected.capitalize()} to analyze and repair this code."
+            )
+        return {
+            "detected_language": detected,
+            "language_validation": LanguageValidationResult(
+                selected_language=selected,
+                detected_language=detected,
+                is_match=is_match,
+                confidence=confidence,
+                message=message,
+            ),
+            "status": "running" if is_match else "language_mismatch",
+        }
 
     def execute_node(self, state: AgentState) -> Dict[str, Any]:
         """Node 1: Execute the current code in a controlled environment."""
@@ -226,8 +253,8 @@ class AgentNodeHandler:
 
         llm = ChatGroq(
             groq_api_key=api_key,
-            model_name=self.diagnosis_client.model_name,
-            temperature=0.1,
+            model=self.diagnosis_client.model_name,
+            temperature=0,
         ).with_structured_output(GeneratedPatch)
 
         prompt = ChatPromptTemplate.from_messages(

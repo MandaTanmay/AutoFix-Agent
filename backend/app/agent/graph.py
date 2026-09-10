@@ -7,6 +7,7 @@ from app.agent.routing import (
     check_runtime_error,
     check_validation_passed,
     check_retry_decision,
+    check_language_match,
 )
 
 
@@ -50,6 +51,7 @@ def create_autofix_graph(handler: Optional[AgentNodeHandler] = None):
 
     # Register workflow nodes
     workflow.add_node("execute", node_handler.execute_node)
+    workflow.add_node("detect_language", node_handler.detect_language_node)
     workflow.add_node("observe", node_handler.observe_node)
     workflow.add_node("validate_initial", node_handler.validate_node)
     workflow.add_node("diagnose", node_handler.diagnose_node)
@@ -58,7 +60,12 @@ def create_autofix_graph(handler: Optional[AgentNodeHandler] = None):
     workflow.add_node("retry", node_handler.retry_node)
 
     # Initial flow
-    workflow.add_edge(START, "execute")
+    workflow.add_edge(START, "detect_language")
+    workflow.add_conditional_edges(
+      "detect_language",
+      check_language_match,
+      {"match": "execute", "mismatch": END},
+    )
     workflow.add_edge("execute", "observe")
 
     # Step 1: Check runtime execution

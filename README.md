@@ -91,6 +91,7 @@ cp .env.example .env
 
 # Configure .env with:
 GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 
 # Start FastAPI server
@@ -134,6 +135,9 @@ pytest tests/test_execution.py -v
 
 ### Backend (.env)
 - `GROQ_API_KEY` - Groq API key for LLM diagnosis
+- `GROQ_MODEL` - Groq model name (default: `openai/gpt-oss-120b`)
+  - **Important**: Groq regularly updates available models. Check https://console.groq.com/docs/models for current models
+  - Common alternatives: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `gemma2-9b-it`
 - `CORS_ORIGINS` - Comma-separated list of allowed CORS origins
 - `PORT` - Server port (default: 8000)
 - `HOST` - Server host (default: 0.0.0.0)

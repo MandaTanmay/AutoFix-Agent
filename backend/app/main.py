@@ -24,6 +24,7 @@ from app.llm.client import LLMDiagnosisClient
 from app.agent.graph import create_autofix_graph
 from app.agent.nodes import AgentNodeHandler
 from app.agent.state import AgentState
+from app.analysis.language_detector import detect_language
 
 # Load environment variables
 load_dotenv()
@@ -64,6 +65,23 @@ def analyze_code(request: AnalyzeRequest):
     Executes code and observes/parses errors without initiating repairs.
     """
     try:
+        detected_language, confidence = detect_language(request.source_code)
+        selected_language = {"py": "python", "js": "javascript"}.get(request.language, request.language)
+        language_validation = {
+            "selected_language": selected_language,
+            "detected_language": detected_language,
+            "is_match": detected_language == selected_language,
+            "confidence": confidence,
+            "message": f"The uploaded code appears to be {detected_language.capitalize()}, but {selected_language.capitalize()} is selected.",
+        }
+        if detected_language != selected_language:
+            return AnalyzeResponse(
+                language=selected_language,
+                detected_language=detected_language,
+                language_validation=language_validation,
+                execution_result=None,
+                error_observation=None,
+            )
         exec_manager = ExecutionManager(default_timeout=request.timeout or 5.0)
         exec_result = exec_manager.execute(language=request.language, code=request.source_code)
 
@@ -73,6 +91,8 @@ def analyze_code(request: AnalyzeRequest):
 
         return AnalyzeResponse(
             language=request.language.lower(),
+            detected_language=detected_language,
+            language_validation=language_validation,
             execution_result=exec_result,
             error_observation=error_observation,
         )
@@ -119,6 +139,8 @@ def repair_code(request: RepairRequest):
             "current_code": request.source_code,
             "test_code": request.test_code,
             "language": request.language.lower(),
+            "detected_language": "unknown",
+            "language_validation": None,
             "attempt": 0,
             "max_attempts": request.max_attempts or 5,
             "execution_result": None,
@@ -135,13 +157,22 @@ def repair_code(request: RepairRequest):
 
         # Synthesize concise agent events from history and final state
         events: List[AgentEvent] = []
-        events.append(
-            AgentEvent(
-                type="execution",
+        language_validation = final_state.get("language_validation")
+        if language_validation and not language_validation.is_match:
+            events.append(AgentEvent(
+                type="language_mismatch",
                 attempt=0,
-                message=f"Initial code execution completed ({'Passed' if final_state.get('execution_result') and final_state['execution_result'].success else 'Error detected'}).",
+                message=language_validation.message,
+                details=language_validation.model_dump(),
+            ))
+        else:
+            events.append(
+                AgentEvent(
+                    type="execution",
+                    attempt=0,
+                    message=f"Initial code execution completed ({'Passed' if final_state.get('execution_result') and final_state['execution_result'].success else 'Error detected'}).",
+                )
             )
-        )
 
         for item in final_state.get("history", []):
             if item.diagnosis:
@@ -168,18 +199,21 @@ def repair_code(request: RepairRequest):
                 )
             )
 
-        events.append(
-            AgentEvent(
-                type="completion",
-                attempt=final_state.get("attempt", 0),
-                message=f"Agent workflow finished with status: {final_state.get('status')}.",
+        if final_state.get("status") != "language_mismatch":
+            events.append(
+                AgentEvent(
+                    type="completion",
+                    attempt=final_state.get("attempt", 0),
+                    message=f"Agent workflow finished with status: {final_state.get('status')}.",
+                )
             )
-        )
 
         return RepairResponse(
             session_id=session_id,
             status=final_state.get("status", "failed"),
             language=request.language.lower(),
+            detected_language=final_state.get("detected_language", "unknown"),
+            language_validation=final_state.get("language_validation"),
             attempts=final_state.get("attempt", 0),
             final_code=final_state.get("current_code", request.source_code),
             diagnosis=final_state.get("diagnosis"),
@@ -246,6 +280,8 @@ async def _repair_event_generator(
             "current_code":  repair_request.source_code,
             "test_code":     repair_request.test_code,
             "language":      repair_request.language.lower(),
+            "detected_language": "unknown",
+            "language_validation": None,
             "attempt":       0,
             "max_attempts":  repair_request.max_attempts or 5,
             "execution_result":  None,
@@ -284,7 +320,7 @@ async def _repair_event_generator(
                     await asyncio.sleep(0)
 
                     # If we emitted a terminal event, stop processing further chunks
-                    if event.type in (SSEEventType.REPAIR_SUCCESS, SSEEventType.REPAIR_FAILED):
+                    if event.type in (SSEEventType.REPAIR_SUCCESS, SSEEventType.REPAIR_FAILED, SSEEventType.LANGUAGE_MISMATCH):
                         terminal_emitted = True
 
             if terminal_emitted:

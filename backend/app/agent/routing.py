@@ -2,6 +2,12 @@ from typing import Literal
 from app.agent.state import AgentState
 
 
+def check_language_match(state: AgentState) -> Literal["match", "mismatch"]:
+    """Route only language-compatible source code into execution."""
+    validation = state.get("language_validation")
+    return "match" if validation and validation.is_match else "mismatch"
+
+
 def check_runtime_error(state: AgentState) -> Literal["runtime_error", "validate"]:
     """
     Evaluates initial execution:
