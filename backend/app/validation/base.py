@@ -4,9 +4,10 @@ from pydantic import BaseModel, Field
 
 
 class TestFailureDetail(BaseModel):
-    """Detailed breakdown of a failed test case."""
-    test_name: str
-    message: str
+    """Detailed information about an individual test failure."""
+    __test__ = False
+    test_name: str = Field(..., description="Name or identifier of the failing test")
+    message: str = Field(..., description="Failure message or assertion error")
     expected: Optional[str] = None
     actual: Optional[str] = None
 
